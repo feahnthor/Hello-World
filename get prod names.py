@@ -122,7 +122,18 @@ def url_login(driver,url):
     submit = driver.find_element_by_class_name('loginbutton')
     submit.click()
     driver.get('https://backgroundtown.com/Admin/Product/Edit/1039')
-  driver.get('https://backgroundtown.com/Admin/Product/Edit/1039')
+  # driver.get('https://backgroundtown.com/Admin/Product/Edit/1039')
+  with open('product list.txt', 'r') as file:
+      for product_id in file:
+        print(f'https://backgroundtown.com/Admin/Product/Edit/{product_id}')
+        driver.get(f'https://backgroundtown.com/Admin/Product/Edit/{product_id}')
+        WebDriverWait(driver, 30).until(
+          EC.presence_of_element_located((By.CLASS_NAME, 'table-wrapper')))
+        designer = driver.find_element_by_css_selector('#product-edit tbody tr td')
+        # soup = get_soup(designer, 'html.parser')
+        logger.info(f'Designer Found: {designer}')
+        
+
 
   # fetchData(driver)
 def fetchData(driver):
@@ -130,7 +141,6 @@ def fetchData(driver):
   # product_id = ''
   # product_url = 'https://backgroundtown.com/Admin/Product/Edit/'
   product_list = driver.find_elements_by_css_selector('#ProductVariants option')
-
 
   cookies = driver.get_cookies()
   # print(cookies)
@@ -148,28 +158,28 @@ def fetchData(driver):
     product_url = f'https://backgroundtown.com/Admin/Product/Edit/{product_id}'
     # print(foo.text, foo.get_attribute('value'))
     count +=1
-    logger.info(f'TOTAL: {count}')
-    print(product_url)
+    # logger.info(f'TOTAL: {count}')
+    # print(product_url)
     res = ses.get(product_url)
     status = res.status_code
     soup = get_soup(res.content, 'html.parser')
-    logger.info(f'STATUS CODE: {status}')
+    # logger.info(f'STATUS CODE: {status}')
     copy_btn = soup.select('#copyproduct')
     
     designer = soup.select('#product-edit tbody tr td')
     
     ##prduct-edit tbody tr td
     title = soup.title.text
-    if status == 200:
-      logger.info(f'Title: {title}   Button: {copy_btn}  De: {designer}')
-
+    # if status == 200:
+    #   logger.info(f'Title: {title}   Button: {copy_btn}  De: {designer}')
+  
 def main():
   sys_sleep = None
   sys_sleep = WindowsInhibitor()
   logger.info('System inhibited')
   sys_sleep.inhibit()
   
-  url = 'https://backgroundtown.com/backgroundtown/CA/Admin/StaticPDFProduct/Create'
+  url = 'https://backgroundtown.com/Admin/Product/Edit/34'
   #start driver
   driver = init_driver()
 
