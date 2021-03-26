@@ -12,6 +12,7 @@ from credentials import Credentials
 import re, os, logging
 from time import sleep
 from datetime import datetime
+from scraper import file_manager
 """
 Code adapted from "Project article by Michael Haephrati" alexa.py
 1. selecting an element using driver 
@@ -26,13 +27,13 @@ Goals
 """
 start_time = datetime.now()
 logger = logging.getLogger("backgroundtown")
-formatter = logging.Formatter("%(asctime)s;%(levelname)s    %(message)s")
+formatter = logging.Formatter("%(asctime)s; %(levelname)s    %(message)s")
 stream_handler = logging.StreamHandler()
 stream_handler.setLevel(logging.DEBUG)
 stream_handler.setFormatter(formatter)
-file_object_handler = logging.file_objectHandler(file_objectname="alexa.log")
-file_object_handler.setFormatter(formatter)
-logger.addHandler(file_object_handler)
+file_handler = logging.FileHandler(filename="bg-town product.log")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 logger.setLevel(logging.DEBUG)
 
@@ -122,23 +123,43 @@ def url_login(driver,url):
       EC.presence_of_element_located((By.CLASS_NAME, 'loginbutton')))
     submit = driver.find_element_by_class_name('loginbutton')
     submit.click()
-
-def get_catgeory(driver):
-  product_list = []
-  with open('product list.txt', 'r') as product_file_object:
+    logger.info('Login Successful')
+def get_available_products(driver):
+  product_object_list = []
+  logger.info('Getting products and their IDs...')
+  WebDriverWait(driver, 30).until(
+    EC.presence_of_element_located((By.ID, 'ProductVariants')))
+  product_selector = driver.find_elements_by_css_selector('#ProductVariants option')
+  for web_element in product_selector:
+    value = web_element.get_attribute('value') #get attribute value
+    product_name = web_element.get_attribute('textContent') #get innerhtml text
+    product_object = {
+      'id' : value,
+      'name': product_name
+    }
+    product_object_list.append(product_object)
+  logger.info('Done. Got list containing product objects')
+  return product_object_list
+def get_catgeory(driver,url, list):
+  url_login(driver, url)
+  count = 0
+  updated_prod_object_list = []
+  dirName = os.getcwd()
+  # with open('product list.txt', 'r') as product_file_object:
     #https://www.toolsqa.com/selenium-webdriver/webelement-commands/
-    for product_id in product_file_object:
-      print(f'https://backgroundtown.com/Admin/Product/Edit/{product_id}')
-      driver.get(f'https://backgroundtown.com/Admin/Product/Edit/{product_id}')
+  for product_object in list:
+    try:
+      logger.info(f'https://backgroundtown.com/Admin/Product/Edit/{product_object["id"]}')
+      driver.get(f'https://backgroundtown.com/Admin/Product/Edit/{product_object["id"]}')
       check_field = WebDriverWait(driver, 30).until(
         EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#product-edit ul li')))
 
-      category = driver.find_elements_by_css_selector('#product-edit ul li')[3] # category tab
+      category_tab_selector = driver.find_elements_by_css_selector('#product-edit ul li')[3] # category tab
 
 
 
 
-      category.click() #clicking ensures page is loaded enough to have entire category list, so it avoid issues discussed below about StaleElementReferenceException
+      category_tab_selector.click() #clicking ensures page is loaded enough to have entire category list, so it avoid issues discussed below about StaleElementReferenceException
 
 
       check_failed = WebDriverWait(driver, 30).until(
@@ -146,51 +167,19 @@ def get_catgeory(driver):
       designer_selector = driver.find_elements_by_css_selector('#product-edit-4 #productcategories-grid tbody tr td') 
       #allows webdriver to wait for all elements, there was an issue where there would  only be 1 td loaded so indexing would not work to avoid StaleElementReferenceException
       # soup = get_soup(designer, 'html.parser')
-      logger.info(f'Designer Found: {designer_selector[0].get_attribute("textContent")}') #textContent is a better method, took care of "Themes >> Party Backdrops" special case
+      # logger.info(f'Designer Found: {designer_selector[0].get_attribute("textContent")}') #textContent is a better method, took care of "Themes >> Party Backdrops" special case
       #                                                                           https://blog.cloudboost.io/why-textcontent-is-better-than-innerhtml-and-innertext-9f8073eb9061
-      designer = designer[0].get_attribute("textContent")
-      product_list.append() #Need to get product name
+      designer = designer_selector[0].get_attribute("textContent")
+      product_object['designer'] = designer
+      updated_prod_object_list.append(product_object)
+    except KeyboardInterrupt:
+      pass
+    
+  file_manager(dirName, '', 'bg-products.json', updated_prod_object_list, 'w')
+  return updated_prod_object_list
+    # product_list.append() #Need to get product name
         
 
-
-  # fetchData(driver)
-# def fetchData(driver):
-#   count = 0
-#   # product_id = ''
-#   # product_url = 'https://backgroundtown.com/Admin/Product/Edit/'
-#   product_list = driver.find_elements_by_css_selector('#ProductVariants option')
-
-#   cookies = driver.get_cookies()
-#   # print(cookies)
-#   ses = requests.Session()
-#   ses.headers = {'User-Agent':
-#   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-#   '(KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36'}
-
-#   # pass the cookies generated dfrom the browser to the session
-#   c = [ses.cookies.set(c['name'], c['value']) for c in cookies]
-
-  
-#   for foo in product_list:
-#     product_id = foo.get_attribute('value')
-#     product_url = f'https://backgroundtown.com/Admin/Product/Edit/{product_id}'
-#     # print(foo.text, foo.get_attribute('value'))
-#     count +=1
-#     # logger.info(f'TOTAL: {count}')
-#     # print(product_url)
-#     res = ses.get(product_url)
-#     status = res.status_code
-#     soup = get_soup(res.content, 'html.parser')
-#     # logger.info(f'STATUS CODE: {status}')
-#     copy_btn = soup.select('#copyproduct')
-    
-#     designer = soup.select('#product-edit tbody tr td')
-    
-#     ##prduct-edit tbody tr td
-#     title = soup.title.text
-#     # if status == 200:
-#     #   logger.info(f'Title: {title}   Button: {copy_btn}  De: {designer}')
-  
 def main():
   sys_sleep = None
   sys_sleep = WindowsInhibitor()
@@ -204,8 +193,10 @@ def main():
 
   while True:
     try:
-      url_login(driver, url)
-      get_catgeory(driver)
+      url_login(driver, normal_product_url_info)
+      # first function following url does not need a url
+      products_obj_list = get_available_products(driver) 
+      get_catgeory(driver, url, products_obj_list)
       break
     except TimeoutException:
       # catch broken connection
