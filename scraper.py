@@ -191,12 +191,14 @@ class file_manager():
       self.fileName = filename
       self.fileContent = fileContent
       self.fileMode = filemode
+      
 
   # def createFile(dirName, subfolderName,  fileName, fileContent, filemode):
   def createFile(self):
     
     #filemode must be letters i.e. 'a, w, r, wb' or any other file methods to open
     #set new instance of current directory to use
+    print(f'WRITING TO FILES TO {self.dirName}')
     os.chdir(self.dirName)
     #concatenate
     if '.json' in self.fileName:
@@ -221,7 +223,7 @@ def readJsonFile(url, time, make_changes):
     print(data[0].keys())
     # key = data[0].keys()
     
-    novel_object = data[0]['wuxiaworld'][1]
+    novel_object = data[0]['wuxiaworld'][4]
     novel_name = novel_object['name']
     first_chapter = novel_object['first_chapter']
     cur_chapter = novel_object['current_chapter']
