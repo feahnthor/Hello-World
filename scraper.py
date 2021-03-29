@@ -19,6 +19,9 @@ Future update plans:
   8. For royal road novels you need to index to 2 for next chapter button since all three <a> elements
     have the same class names
 
+ Answers from questions i posted on reddit:
+  1.https://www.reddit.com/r/learnpython/comments/mfrs9p/python_class_how_can_i_call_my_createfile_do_i/
+
 """
 
 import ctypes
@@ -114,7 +117,7 @@ def fetch(url, chapter_content_tag, next_chapter_tag, dirName):
         p_tag = soup.select(chapter_content_tag)
         try: 
           # next_chapter = soup.select('.section-content .next a.btn-link')[0]['href'] 
-          next_chapter_url = soup.select(next_chapter_tag)[0]['href'] 
+          next_chapter_url = soup.select(next_chapter_tag)[2]['href'] 
           logger.info(f'NEXT CHAPTER FOUND {next_chapter_url}')
         except IndexError: #Happens once a value can no longer be retrieved
           # next_chapter_url = ''
@@ -137,7 +140,7 @@ def fetch(url, chapter_content_tag, next_chapter_tag, dirName):
         continue
     if status == 200:
       ## checks if link is valid
-      if len(p_tag) > 12: #greater than 10 takes ignores teaser chapters on wuxiaworld
+      if len(p_tag) > 13: #greater than 10 takes ignores teaser chapters on wuxiaworld
         # print(f'{page_title}\n\n <p> length = {len(p_tag)}')
         page_title = re.sub('[^A-Za-z0-9]+', ' ', page_title) #remove special characters
         for i in range(len(p_tag)):
@@ -145,19 +148,26 @@ def fetch(url, chapter_content_tag, next_chapter_tag, dirName):
           # chapter_content += f'{p_tag[i].text}\n' #gets rid of tags for txt files
           # print(f'{i}). {p_tag[i].text}')
         try:
-          file_manager(dirName,'Chapters', f'{page_title}.html', chapter_content , 'w')
+          # file_manager(dirName,'Chapters', f'{page_title}.html', chapter_content , 'w')
+          fm = file_manager
+          fm = file_manager(dirName,'Chapters', f'{page_title}.html', chapter_content , 'w' )
+          logger.info(f'Valid site. Writing chapter to {dirName}{fm.subFolderName}')
+          
+          fm.createFile()
           return next_chapter_url
         except (OSError, UnboundLocalError): 
           #Unbound Error handling to take care of issue where there is no next chapter found
             #instead of erroring out, "variable next_chapter_url referenced before assignment"
           logger.critical('FILE CREATION ERROR MAY BE A SPECIAL CHARACTER')
-          file_manager(dirName,'Errors', 'failed_links.txt', f'{now}\t{page_title}\n', 'a+')
+          fm = file_manager(dirName,'Errors', 'failed_links.txt', f'{now}\t{page_title}\n', 'a+')
+          fm.createFile()
           keep_looping = False
           return url # returns last successful url, put here for when no other url can be found next_chapter_url 
       else:
         logger.critical('Response of chapter with no content')
         #send to function to create file, by joining directory with file name
-        file_manager(dirName,'Errors', 'failed_links.txt', f'{now}\t{url}\n', 'a+')
+        fm = file_manager(dirName,'Errors', 'failed_links.txt', f'{now}\t{url}\n', 'a+')
+        fm.createFile()
         logger.info('Written the link to "failed_links.txt" file.\n')
         logger.info(now - startTime)
         keep_looping = False
@@ -223,7 +233,7 @@ def readJsonFile(url, time, make_changes):
     print(data[0].keys())
     # key = data[0].keys()
     
-    novel_object = data[0]['wuxiaworld'][4]
+    novel_object = data[0]['Royal Road'][0]
     novel_name = novel_object['name']
     first_chapter = novel_object['first_chapter']
     cur_chapter = novel_object['current_chapter']
