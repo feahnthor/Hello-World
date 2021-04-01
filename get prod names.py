@@ -13,6 +13,8 @@ import re, os, logging
 from time import sleep
 from datetime import datetime
 from scraper import file_manager
+import json
+import threading
 """
 Code adapted from "Project article by Michael Haephrati" alexa.py
 1. selecting an element using driver 
@@ -21,6 +23,10 @@ Code adapted from "Project article by Michael Haephrati" alexa.py
 Issues with td tag returning blank text solved https://stackoverflow.com/questions/48363539/selenium-python-scrape-td-element-returns-blank-text
 Issues: requests does not get the entire dom for imagebuggy admin, so we need to get using selenium
 
+* Python 3 fastest dict key check https://www.tutorialspoint.com/python3/dictionary_has_key.htm
+* Merging dictionaries https://thispointer.com/how-to-merge-two-or-more-dictionaries-in-python/
+* Webddriver commands https://www.toolsqa.com/selenium-webdriver/webelement-commands/
+* Webdriver getattribute https://blog.cloudboost.io/why-textcontent-is-better-than-innerhtml-and-innertext-9f8073eb9061
 Goals 
 1. Get Product names and ids
 2. Get designer names
@@ -68,14 +74,15 @@ def init_driver():
   chrome_options = Options()
   # use local data directory
   # headless mode can't be enabled since then amazon shows captcha
-  
-  chrome_options.add_argument("user-data-dir=selenium") 
-  chrome_options.add_argument("start-maximized")
+  # headless mode increases speed
+  chrome_options.add_argument('--headless')
+  chrome_options.add_argument("user-data-dir=selenium")
+  # chrome_options.add_argument("start-maximized")
   chrome_options.add_argument("--disable-infobars")
-  chrome_options.add_argument('--disable-gpu')  
+  chrome_options.add_argument('--disable-gpu')
   # chrome_options.add_argument('user-data-dir=selenium')  
   chrome_options.add_argument('--remote-debugging-port=4444')
-  # chrome_options.add_argument('--no-sandbox')
+  chrome_options.add_argument('--no-sandbox')
   chrome_options.add_argument('--disable-dev-shm-usage')
   chrome_options.add_argument("--mute-audio")
   
@@ -124,69 +131,120 @@ def url_login(driver,url):
     submit = driver.find_element_by_class_name('loginbutton')
     submit.click()
     logger.info('Login Successful')
+
+def open_json(file_name):
+  with open(file_name, 'r+') as json_file:
+    data = json.load(json_file)
+  return data
+
 def get_available_products(driver):
-  product_object_list = []
+  product_object_dict = {}
+  # json_id = False
+  # json_name = False
+  if os.path.isfile('bg-products.json'):
+    logger.info(f'JSON FILE FOUND!')
   logger.info('Getting products and their IDs...')
   WebDriverWait(driver, 30).until(
     EC.presence_of_element_located((By.ID, 'ProductVariants')))
   product_selector = driver.find_elements_by_css_selector('#ProductVariants option')
+
   for web_element in product_selector:
     value = web_element.get_attribute('value') #get attribute value
     product_name = web_element.get_attribute('textContent') #get innerhtml text
     product_object = {
-      'id' : value,
       'name': product_name
     }
-    product_object_list.append(product_object)
+    product_object_dict[value] = product_object
   logger.info('Done. Got list containing product objects')
-  return product_object_list
-def get_catgeory(driver,url, list):
+  return product_object_dict
+
+def get_catgeory(driver,url, product_dict):
   url_login(driver, url)
-  count = 0
-  updated_prod_object_list = []
+  changes_made = False
+  file_dict = open_json('bg-products.json')
   dirName = os.getcwd()
-  # with open('product list.txt', 'r') as product_file_object:
-    #https://www.toolsqa.com/selenium-webdriver/webelement-commands/
-  for product_object in list:
-    try:
-      logger.info(f'https://backgroundtown.com/Admin/Product/Edit/{product_object["id"]}')
-      driver.get(f'https://backgroundtown.com/Admin/Product/Edit/{product_object["id"]}')
-      check_field = WebDriverWait(driver, 30).until(
-        EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#product-edit ul li')))
-
-      category_tab_selector = driver.find_elements_by_css_selector('#product-edit ul li')[3] # category tab
-
-
-
-
-      category_tab_selector.click() #clicking ensures page is loaded enough to have entire category list, so it avoid issues discussed below about StaleElementReferenceException
-
-
-      check_failed = WebDriverWait(driver, 30).until(
-        EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#product-edit-4 #productcategories-grid tbody tr td'))) 
-      designer_selector = driver.find_elements_by_css_selector('#product-edit-4 #productcategories-grid tbody tr td') 
-      #allows webdriver to wait for all elements, there was an issue where there would  only be 1 td loaded so indexing would not work to avoid StaleElementReferenceException
-      # soup = get_soup(designer, 'html.parser')
-      # logger.info(f'Designer Found: {designer_selector[0].get_attribute("textContent")}') #textContent is a better method, took care of "Themes >> Party Backdrops" special case
-      #                                                                           https://blog.cloudboost.io/why-textcontent-is-better-than-innerhtml-and-innertext-9f8073eb9061
-      designer = designer_selector[0].get_attribute("textContent")
-      product_object['designer'] = designer
-      updated_prod_object_list.append(product_object)
-    except KeyboardInterrupt:
-      pass
     
-  file_manager(dirName, '', 'bg-products.json', updated_prod_object_list, 'w')
-  return updated_prod_object_list
-    # product_list.append() #Need to get product name
+  for key, val in product_dict.items():
+    try:
+      if key not in file_dict:
+        logger.info('FOUND PRODUCT ID NOT IN JSON FILE')
+        logger.info(f'https://backgroundtown.com/Admin/Product/Edit/{key}')
+        driver.get(f'https://backgroundtown.com/Admin/Product/Edit/{key}')
+        check_field = WebDriverWait(driver, 30).until(
+          EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#product-edit ul li')))
+
+        category_tab_selector = driver.find_elements_by_css_selector('#product-edit ul li')[3] # category tab
+        category_tab_selector.click() #clicking ensures page is loaded enough to have entire category list, so it avoid issues discussed below about StaleElementReferenceException
+
+        check_failed = WebDriverWait(driver, 30).until(
+          EC.presence_of_all_elements_located((By.CSS_SELECTOR, '#product-edit-4 #productcategories-grid tbody tr td'))) 
+        designer_selector = driver.find_elements_by_css_selector('#product-edit-4 #productcategories-grid tbody tr td') 
+        #allows webdriver to wait for all elements, there was an issue where there would  only be 1 td loaded so indexing would not work to avoid StaleElementReferenceException
         
+        for index in range(len(designer_selector)):
+          # catch cases where designer is not first in the table
+          category = designer_selector[index].get_attribute("textContent") #textContent is a better method, took care of "Themes >> Party Backdrops" special case
+        #                                                                           https://blog.cloudboost.io/why-textcontent-is-better-than-innerhtml-and-innertext-9f8073eb9061
+          if 'Designer >>' not in category and 'ACI Collection' not in category:
+            continue
+          else:
+            designer = category
+        product_dict[key].update({'designer' : designer}) #combine dictionary
+        file_dict[key] = product_dict[key]
+        changes_made = True
+        
+      else: 
+        continue
+    except (KeyboardInterrupt, TimeoutException):
+      fm = file_manager(dirName, '', 'bg-products.json', file_dict, 'w')
+      fm.createFile()
+      driver.quit()
+  if changes_made == True:
+    # make changes to file, if changes is has been added
+    fm = file_manager(dirName, '', 'bg-products.json', file_dict, 'w')
+    fm.createFile()
+    logger.info(f'Done. File has been updated in {dirName}')
+    driver.quit()
+  else:
+    logger.info(f'Done. No changes made to file in {dirName}')
+    driver.quit()
+
+def check_production_folder():
+  """
+  Check \\\\\work\\production\\backgroundtown images\\{designer} to see if files containing
+    the same name exists.
+  """
+  now = datetime.now()
+  product_dict = open_json('bg-products.json')
+  production = '\\\\work\\production\\backgroundtown images\\'
+  marketing = '\\\\work\\marketing\\backgroundtown\\backgrounds to add to the web\\'
+  os.chdir(production)
+  count = 0
+  
+  for key, value in product_dict.items():
+    # logger.info(os.getcwd())
+    cur_dir = os.chdir(f'{production}{value["designer"]}')
+    # logger.info(f'Directory changed to {cur_dir}')
+    if os.path.isfile(f'{value["name"]}.jpg'):
+      # logger.info(f'Product image found! {os.getcwd()}\\{value["name"]}.jpg')
+      count += 1
+    elif os.path.isfile(f'{marketing}{value["designer"]}\\{value["name"]}.jpg'):
+      logger.info(f'Found these files in Designer folder instead {key}: {value}')
+      count += 1
+    else:
+      logger.info(f'Did not find these product {key}: {value}')
+  logger.info(f'Total files found => {count}/{len(product_dict)} \t\t {datetime.now() - now} seconds')
 
 def main():
   sys_sleep = None
   sys_sleep = WindowsInhibitor()
   logger.info('System inhibited')
   sys_sleep.inhibit()
+
   
-  url = 'https://backgroundtown.com/Admin/Product/Edit/34'
+  # fm = file_manager(dirName, False, 'bg-products.json', False, False)
+  
+  url = 'https://backgroundtown.com/Admin/Product/Edit/50'
   normal_product_url_info = 'https://backgroundtown.com/CA/Admin/StaticPDFProduct/Create'
   #start driver
   driver = init_driver()
@@ -195,8 +253,12 @@ def main():
     try:
       url_login(driver, normal_product_url_info)
       # first function following url does not need a url
-      products_obj_list = get_available_products(driver) 
-      get_catgeory(driver, url, products_obj_list)
+      product_dict = get_available_products(driver) 
+      get_catgeory(driver, url, product_dict)
+      # check_production_folder()
+      thread = threading.Thread(target = check_production_folder)
+      thread.start()
+      thread.join()
       break
     except TimeoutException:
       # catch broken connection
